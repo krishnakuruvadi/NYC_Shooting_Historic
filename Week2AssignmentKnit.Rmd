@@ -1,0 +1,143 @@
+---
+title: "Week3Assignment"
+author: "Krishna"
+date: "2022-11-28"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## NYPD Shooting Incident Data (Historic)
+
+Data is list of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year ie 2021. It can be accessed from <https://catalog.data.gov/dataset>.
+
+Intent is to import data and see if there is any correlation between race of perpetrator and victim and a brief idea of areas of NYC where incidents were recorded.
+
+**Import and clean data**
+```{r dataquery, echo=TRUE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(leaflet)
+
+tf <- tempfile()
+download.file("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD", tf)
+data <- read_csv(tf)
+file.remove(tf)
+rm(tf)
+data <- data %>% select(-INCIDENT_KEY,
+                      -LOCATION_DESC,
+                      -PRECINCT,
+                      -JURISDICTION_CODE)
+
+```
+
+**Summary of data**
+```{r data}
+summary(data)
+```
+
+## Plots
+
+### Shooting incidents according to occurrence time
+
+```{r occur_time, echo=TRUE}
+
+data %>% 
+  ggplot(aes(OCCUR_TIME)) + 
+  geom_histogram(bins = 48) + 
+  xlab("Occurrence Time") +
+  ylab("Shooting Incidents") +
+  ggtitle("Incident Distribution by Time of Occurrence")
+```
+
+### Shooting incidents on a map of NYC by cluster
+
+```{r map_cluster, echo=TRUE,warning=FALSE, message=FALSE}
+cluster <- leaflet(data) %>%
+  addTiles() %>%
+  addMarkers(clusterOptions = markerClusterOptions()) %>%
+  setView(-74.00, 40.71, zoom = 10) %>%
+  addProviderTiles("CartoDB.VoyagerLabelsUnder")
+cluster
+```
+
+### Shooting incidents by victim race
+
+```{r vic_race, echo=TRUE}
+victim_race_incidents <- data %>%
+  group_by(VIC_RACE) %>%
+  summarize(count = n(), 
+            prop = count/nrow(data),
+            prop_death = mean(STATISTICAL_MURDER_FLAG))
+
+victim_race_incidents %>% 
+  ggplot(aes(count, y = reorder(VIC_RACE, - count), fill = VIC_RACE)) +
+  geom_bar(stat = "identity") +
+  ylab("Victim Race") +
+  xlab("Shooting Incidents") +
+  ggtitle("Shooting Incidents Grouped By Victim Race") +
+  theme(legend.position = "none")
+```
+
+### Perpetrators grouped by race and age
+```{r perp_count, echo=TRUE}
+options(dplyr.summarise.inform = FALSE)
+df_non_na_perp<- data %>% filter_at(vars(PERP_RACE,PERP_AGE_GROUP),all_vars(!is.na(.)))
+df_non_na_perp<-df_non_na_perp[!df_non_na_perp$PERP_AGE_GROUP %in% c("1020", "940", "224", "UNKNOWN"), ]
+perp_count<- df_non_na_perp %>% group_by(PERP_RACE, PERP_AGE_GROUP) %>% summarise(count = n())
+perp_count
+```
+
+**Plot**
+
+```{r perp_count_plot, echo=TRUE}
+ggplot(perp_count, aes(fill=PERP_AGE_GROUP, x=count, y=PERP_RACE)) + 
+  geom_bar(position="stack", stat="identity")+
+  ylab("Perpetrator Race") +
+  xlab("Shooting Incidents") +
+  ggtitle("Shooting Incidents Grouped By Perpetrator Race, Age")
+
+```
+
+
+## Heatmap based on perpetrator and victim race
+
+```{r perp_victim_race_heatmap, echo=TRUE}
+df_non_na_perp_vic<- data %>% filter_at(vars(PERP_RACE,VIC_RACE),all_vars(!is.na(.)))
+perp_vic<- df_non_na_perp_vic %>% group_by(PERP_RACE, VIC_RACE) %>% summarise(count = n())
+vic_race <- unique(perp_vic$VIC_RACE)
+perp_vic<-perp_vic%>%
+  complete(VIC_RACE = vic_race, fill=list(count=0))
+ggp <- ggplot(perp_vic, aes(PERP_RACE, VIC_RACE)) +    # Create default ggplot2 heatmap
+  geom_tile(aes(fill = count), color = "grey")
+ggp +                                         # Add values & modify color
+  geom_text(aes(label = count)) +
+  scale_fill_gradient2(low = "purple", high= "blue")+
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_line(color = "white"),
+    axis.text.x = element_text(angle=90, hjust=1))
+```
+
+
+## Findings
+
+Where perpetrator's race is known, majority of incidents involve BLACK race.  Same is the case with victims as well.  Where victim's race is known, majority of incidents involve BLACK race.
+
+Majority of the incidents happened during 8PM and 5AM.
+
+Where perpetrator's race and age is known, majority of incidents involve perpetrators aged between 18 and 44.
+
+The data is tidied to remove entries that have partial or unexpected data.  While the data is tidied, it is not tampered and we dont have complete details of the real incidents or the way this data was sourced.
+
+## Session info
+```{r session_info}
+sessionInfo()
+```
