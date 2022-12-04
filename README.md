@@ -9,10 +9,10 @@ It can be accessed from https://catalog.data.gov/dataset.
 
 ## Intent
 
-Import data, tidy and model
-Find timings when incidents were reported
-Correlation between race of perpetrator and victim 
-Areas of NYC where incidents were recorded.
+* Import data, tidy and model
+* Find timings when incidents were reported
+* Correlation between race of perpetrator and victim 
+* Areas of NYC where incidents were recorded.
 
 ## Libraries
 
